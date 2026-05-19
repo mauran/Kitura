@@ -1,4 +1,4 @@
-// swift-tools-version:5.0
+// swift-tools-version:5.2
 
 /**
  * Copyright IBM Corporation and the Kitura project authors 2016-2020
@@ -20,11 +20,19 @@ import PackageDescription
 import Foundation
 
 var kituraNetPackage: Package.Dependency
+let kituraNetDependency: Target.Dependency
+let swiftSettings: [SwiftSetting]
 
-if ProcessInfo.processInfo.environment["KITURA_NIO"] != nil {
-    kituraNetPackage = .package(url: "https://github.com/Kitura/Kitura-NIO.git", from: "2.4.200")
+// Default behavior is to now use NIO.  Add the environment variable KITURA_NIO=0 to disable NIO and use the (legacy) Kitura-net package.
+let enable_nio = !( ["0","false"].contains(ProcessInfo.processInfo.environment["KITURA_NIO"]) )
+if enable_nio {
+    kituraNetPackage = .package(url: "https://github.com/Kitura/Kitura-NIO.git", from: "3.1.1")
+    kituraNetDependency = .product(name: "KituraNet", package: "Kitura-NIO")
+    swiftSettings = [ .define("DISABLE_FASTCGI")]
 } else {
-    kituraNetPackage = .package(url: "https://github.com/Kitura/Kitura-net.git", from: "2.4.200")
+    kituraNetPackage = .package(url: "https://github.com/Kitura/Kitura-net.git", from: "3.0.1")
+    kituraNetDependency = .product(name: "KituraNet", package: "Kitura-net")
+    swiftSettings = []
 }
 
 let package = Package(
@@ -36,21 +44,28 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/Kitura/LoggerAPI.git", from: "1.9.200"),
+        .package(url: "https://github.com/Kitura/LoggerAPI.git", from: "2.0.0"),
         .package(url: "https://github.com/apple/swift-log.git", Version("0.0.0") ..< Version("2.0.0")),
         kituraNetPackage,
         .package(url: "https://github.com/Kitura/Kitura-TemplateEngine.git", from: "2.0.200"),
-        .package(url: "https://github.com/Kitura/KituraContracts.git", from: "1.2.200"),
+        .package(url: "https://github.com/Kitura/KituraContracts.git", from: "2.0.1"),
         .package(url: "https://github.com/Kitura/TypeDecoder.git", from: "1.3.200"),
     ],
     targets: [
         .target(
             name: "Kitura",
-            dependencies: ["KituraNet", "KituraTemplateEngine", "KituraContracts", "TypeDecoder", "LoggerAPI", "Logging"]
+            dependencies: [
+                kituraNetDependency,
+                .product(name: "KituraTemplateEngine", package: "Kitura-TemplateEngine"),
+                "KituraContracts", "TypeDecoder", "LoggerAPI",
+                .product(name: "Logging", package: "swift-log")]
         ),
         .testTarget(
             name: "KituraTests",
-            dependencies: ["Kitura", "KituraContracts", "TypeDecoder", "LoggerAPI"]
+            dependencies: ["Kitura", "KituraContracts", "TypeDecoder", "LoggerAPI"],
+            swiftSettings: swiftSettings
         )
     ]
 )
+
+
